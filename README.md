@@ -1,4 +1,4 @@
-# dallab_math_club
+# dallab math club
 
 code and data for summer journal club!
 
