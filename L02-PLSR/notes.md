@@ -1,4 +1,5 @@
 ### partial least squares (PLS)
+July 8th, 2025 15:00
 
 - maximizing covariance between y and latent variable (linear combination of x’s), getting rid of collinearity
 - works with # features > # observations
