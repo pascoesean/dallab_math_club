@@ -16,16 +16,14 @@ begin
 	using Statistics
 
 	n_comps = 3
-end
+end;
 
 # ╔═╡ 6d0981eb-97f7-4d8c-84ab-8b75ff78dc8a
 md"""
 # 📽️ principal component analysis 
 
-TODO:
-- implement it first with multivariate stats package
-- implement it with just linear algebra
-- cute interactive plots?
+- implementation with multivariate stats package
+- implementation with linear algebra package
 """
 
 # ╔═╡ 50000a65-d218-4e09-a081-8f291e6bbe64
@@ -47,17 +45,17 @@ begin
 	end
 
 	# from MLBase for encoding labels as integers
-	species = labelmap(penguins.species)
-	islands = labelmap(penguins.island)
-	penguins[!, :species] = labelencode(species, penguins.species)
-	penguins[!, :island] = labelencode(islands, penguins.island)
+	species_map = labelmap(penguins.species)
+	island_map = labelmap(penguins.island)
+	penguins[!, :species] = labelencode(species_map, penguins.species)
+	penguins[!, :island] = labelencode(island_map, penguins.island)
 
 	# goodbye missing values
 	dropmissing!(penguins)
 
 	# copy and remove labels from data
 	species_i = penguins.species
-	islands_i = penguins.island
+	island_i = penguins.island
 	select!(penguins, Not(:species, :island))
 	
 	first(penguins, 10)
@@ -93,45 +91,131 @@ begin
 	# transform X into PC space
 	scores_1 = predict(pca, X_T)
 
-	# TODO: get loadings and plot
+	# TODO: loadings bar plots
+	loadings_1 = loadings(pca)
 end
 
 # ╔═╡ 7a537057-eb61-457a-9391-2188f465dfc7
 begin
-	# aspect = DataAspect(),
-	f = Figure()
-	ax1 = Axis(f[1, 1], xlabel = "PC 1", ylabel = "PC 2")
-	ax2 = Axis(f[1, 2], xlabel = "PC 1", ylabel = "PC 2")
+	f = Figure(size = (1000, 1500))
+	ax1 = Axis(f[1, 1], xlabel = "PC 1", ylabel = "PC 2", title = "By Species")
+	ax2 = Axis(f[1, 2], xlabel = "PC 1", ylabel = "PC 2", title = "By Island")
+	ax3 = Axis(f[2, 1], xlabel = "PC 1", ylabel = "PC 3", title = "By Species")
+	ax4 = Axis(f[2, 2], xlabel = "PC 1", ylabel = "PC 3", title = "By Island")
+	ax5 = Axis(f[3, 1], xlabel = "PC 2", ylabel = "PC 3", title = "By Species")
+	ax6 = Axis(f[3, 2], xlabel = "PC 2", ylabel = "PC 3", title = "By Island")
 
-	# TODO: change colors to reflect different species or different islands
-	Makie.scatter!(ax1, scores_1[1, :], scores_1[2, :], marker = '🐱', color = species_i, colormap = :tab10, colorrange = (1, 3))
-	Makie.scatter!(ax2, scores_1[1, :], scores_1[2, :], marker ='🐵', color = islands_i, colormap = :berlin, colorrange = (1, 3))
-
-	# TODO: fix legend
-	# f[2, 1] = Legend(f, ax1, "Species", framevisible = false)
-	# f[2, 2] = Legend(f, ax2, "Island", framevisible = false)
-
-	# TODO: plot against 3rd PC
+	species_colors = resample_cmap(:tab10, length(species_map))
+	island_colors = resample_cmap(:berlin, length(island_map))
 	
+	for i in 1:length(species_map)
+		same_species = findall(==(i), species_i)
+		Makie.scatter!(
+			ax1, 
+			scores_1[1, same_species], 
+			scores_1[2, same_species], 
+			marker = '🐱', 
+			color = species_colors[i], 
+			label = labeldecode(species_map, i)
+		)
+		Makie.scatter!(
+			ax3, 
+			scores_1[1, same_species], 
+			scores_1[3, same_species], 
+			marker = '🐱', 
+			color = species_colors[i], 
+			label = labeldecode(species_map, i)
+		)
+		Makie.scatter!(
+			ax5, 
+			scores_1[2, same_species], 
+			scores_1[3, same_species], 
+			marker = '🐱', 
+			color = species_colors[i], 
+			label = labeldecode(species_map, i)
+		)
+	end
+
+	for i in 1:length(island_map)
+		same_island = findall(==(i), island_i)
+		Makie.scatter!(
+			ax2,
+			scores_1[1, same_island],
+			scores_1[2, same_island],
+			marker = '🐵', 
+			color = island_colors[i],
+			label = labeldecode(island_map, i)
+		)
+		Makie.scatter!(
+			ax4,
+			scores_1[1, same_island],
+			scores_1[3, same_island],
+			marker = '🐵', 
+			color = island_colors[i],
+			label = labeldecode(island_map, i)
+		)
+		Makie.scatter!(
+			ax6,
+			scores_1[2, same_island],
+			scores_1[3, same_island],
+			marker = '🐵', 
+			color = island_colors[i],
+			label = labeldecode(island_map, i)
+		)
+	end
+
+	Legend(f[4, 1], ax1, "Species", orientation = :horizontal)	
+	Legend(f[4, 2], ax2, "Island", orientation = :horizontal)
+
 	f
 end
 
 # ╔═╡ b1182c56-76f3-4337-9f81-7fb2f7b47c36
 md"""
-## 📐 through linear algebra
+## 📐 through LinearAlgebra.jl
 """
 
 # ╔═╡ 3701a988-e027-4887-bcba-bea701202c69
+# via svd function
 begin
-	factorize = svd(X)	
-	scores_2 = factorize.U[:, 1:n_comps] * Diagonal(factorize.S[1:n_comps])
-	
-	# TODO: loadings. i think no need to do plots if i am checking for approximate equality
+	svd_U, svd_Σ, svd_V = svd(X)	
+
+	# scores = UΣ
+	scores_2 = svd_U[:, 1:n_comps] * Diagonal(svd_Σ[1:n_comps])
+
+	# loadings = V√(Λ), where Λ = Σ^2/(n - 1)
+	loadings_2 = svd_V[:, 1:n_comps] * sqrt(Diagonal(svd_Σ[1:n_comps]) ^ 2 ./ (size(X, 1) - 1))
+end
+
+# ╔═╡ 084252ff-b56b-4719-b595-76bc5b4709c4
+# via eigen functions
+begin
+	# sample covariance of X
+	samp_cov = X' * X ./ (size(X, 1) - 1)
+
+	# eigendecomposition
+	eig_vals = eigvals(samp_cov)
+	eig_vecs = eigvecs(samp_cov)
+
+	# not in order of descending eigenvalue, so let's reorder!
+	sorted_idx = sortperm(eig_vals, rev = true)
+	eig_Λ = eig_vals[sorted_idx]
+	eig_V = eig_vecs[:, sorted_idx] # should be same (or * -1) as right singular vectors
+
+	# scores = XV
+	scores_3 = X * eig_V[:, 1:n_comps] 
+
+	# loadings = V√(Λ)
+	loadings_3 = eig_V[:, 1:n_comps] * sqrt(Diagonal(eig_Λ[1:n_comps])) 
 end
 
 # ╔═╡ 5fea5712-e6d0-45c9-8be8-6d5b8acb88ff
-# TODO: use isapprox and set tolerance
-scores_1' .== -1 .* scores_2
+# isapprox returns true if norm(x-y) <= max(atol, rtol*max(norm(x), norm(y)))
+isapprox(abs.(scores_1'), abs.(scores_2))
+
+# ╔═╡ eb53f2ba-5926-4d10-89bf-b9ae281058d9
+# oops
+isapprox(abs.(scores_1'), abs.(scores_3))
 
 # ╔═╡ 0e3486af-4b5d-4afe-8e04-45e2b6176b34
 md"""
@@ -2134,7 +2218,9 @@ version = "1.8.1+0"
 # ╠═7a537057-eb61-457a-9391-2188f465dfc7
 # ╟─b1182c56-76f3-4337-9f81-7fb2f7b47c36
 # ╠═3701a988-e027-4887-bcba-bea701202c69
+# ╠═084252ff-b56b-4719-b595-76bc5b4709c4
 # ╠═5fea5712-e6d0-45c9-8be8-6d5b8acb88ff
+# ╠═eb53f2ba-5926-4d10-89bf-b9ae281058d9
 # ╟─0e3486af-4b5d-4afe-8e04-45e2b6176b34
 # ╠═54ea46a1-05ca-4a85-92dc-37a33de2ccd6
 # ╟─00000000-0000-0000-0000-000000000001
